@@ -4,16 +4,17 @@
 #include <Adafruit_Trellis.h>
 #define LED     13 // Pin for heartbeat LED (shows code is working)
 #define CHANNEL 1  // MIDI channel number
+#define NUMTRELLIS 1
+#define numKeys (NUMTRELLIS * 16)
 
 Adafruit_Trellis trellis;
-
 
 int encoderPins[4][2] = {
   {11, 12}, //encoder 1
   {4, 5}, //encoder 2
   {6, 10}, //encoder 3
   {8, 9}, //encoder 4
-}; 
+}; //DT, CLK
 
 Bounce push_button_1 = Bounce();
 Bounce push_button_2 = Bounce();
@@ -99,6 +100,18 @@ void setup() {
       toReadEncoder[e] = false;
     }
   }
+  // light up all the LEDs in order
+  for (uint8_t i=0; i<numKeys; i++) {
+    trellis.setLED(i);
+    trellis.writeDisplay();    
+    delay(50);
+  }
+  // then turn them off
+  for (uint8_t i=0; i<numKeys; i++) {
+    trellis.clrLED(i);
+    trellis.writeDisplay();    
+    delay(50);
+  }
 }
 
 
@@ -136,7 +149,23 @@ void loop() {
       }
     }
   }
-  else { //shift button is engaged
+  else if (digitalRead(button_3) == HIGH && digitalRead(button_4) == HIGH ) { //shift button is engaged
+    for (int e = 0; e < 4; e++) { //loop through all encoders
+      if (toReadEncoder[e] == true) { //check if we should read this encoder
+        tempEncPosition = encoders[e]->read(); //get encoder position
+        if (tempEncPosition > encPosition[e]) { //this position is greater than the last
+          usbMIDI.sendControlChange(e + 12, 1, CHANNEL);
+          encPosition[e] = tempEncPosition; //update position
+        } else if (tempEncPosition < encPosition[e]) { //this position is less than the last
+          usbMIDI.sendControlChange(e + 12, 127, CHANNEL);
+          encPosition[e] = tempEncPosition; //update position
+        } else {
+          //do nothing
+        }
+      }
+    }
+  }
+  else { //shift buttons are disengaged
     for (int e = 0; e < 4; e++) { //loop through all encoders
       if (toReadEncoder[e] == true) { //check if we should read this encoder
         tempEncPosition = encoders[e]->read(); //get encoder position
@@ -237,4 +266,3 @@ void loop() {
   }
   while (usbMIDI.read()); // Discard incoming MIDI messages
 }
-
